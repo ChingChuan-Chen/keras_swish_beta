@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 import keras
 from keras import backend as K
 from keras.datasets import mnist
@@ -11,9 +10,10 @@ from keras.utils import multi_gpu_model
 from keras.engine.topology import Layer
 
 class SwishBeta(Layer):
-    def __init__(self, trainableBeta = False, beta_initializer = 'ones', **kwargs):
+    def __init__(self, trainable_beta = False, beta_initializer = 'ones', **kwargs):
         super(SwishBeta, self).__init__(**kwargs)
         self.supports_masking = True
+        self.trainable = trainable_beta
         self.beta_initializer = initializers.get(beta_initializer)
         
     def build(self, input_shape):
@@ -26,7 +26,8 @@ class SwishBeta(Layer):
         return inputs * K.sigmoid(self.beta * inputs)
 
     def get_config(self):
-        config = {'beta_initializer': initializers.serialize(self.beta_initializer)}
+        config = {'trainable_beta': self.trainable_beta, 
+                  'beta_initializer': initializers.serialize(self.beta_initializer)}
         base_config = super(SwishBeta, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
@@ -52,32 +53,32 @@ model = Sequential()
 model.add(Conv2D(64, kernel_size=(3, 3), padding = 'same', 
                  kernel_initializer = 'he_uniform', input_shape=input_shape))
 model.add(BatchNormalization())
-model.add(SwishBeta())
+model.add(SwishBeta(True))
 model.add(Conv2D(128, (3, 3), padding = 'same', 
                  kernel_initializer = 'he_uniform'))
 model.add(BatchNormalization())
-model.add(SwishBeta())
+model.add(SwishBeta(True))
 model.add(MaxPooling2D(pool_size=(2, 2)))
 model.add(Conv2D(256, (3, 3), padding = 'same', 
                  kernel_initializer = 'he_uniform'))
 model.add(BatchNormalization())
-model.add(SwishBeta())
+model.add(SwishBeta(True))
 model.add(Conv2D(256, (3, 3), padding = 'same', 
                  kernel_initializer = 'he_uniform'))
 model.add(BatchNormalization())
-model.add(SwishBeta())
+model.add(SwishBeta(True))
 model.add(MaxPooling2D(pool_size=(2, 2)))
 model.add(Conv2D(512, (3, 3), padding = 'same', 
                  kernel_initializer = 'he_uniform'))
 model.add(BatchNormalization())
-model.add(SwishBeta())
+model.add(SwishBeta(True))
 model.add(Conv2D(512, (3, 3), padding = 'same', 
                  kernel_initializer = 'he_uniform'))
 model.add(BatchNormalization())
-model.add(SwishBeta())
+model.add(SwishBeta(True))
 model.add(MaxPooling2D(pool_size=(2, 2)))
 model.add(GlobalAveragePooling2D())
-model.add(SwishBeta())
+model.add(SwishBeta(True))
 model.add(Dense(num_classes, activation='softmax'))
 
 # single gpu
@@ -89,8 +90,25 @@ history = model.fit(x_train, y_train,
                     batch_size = 128,
                     epochs = 500,
                     verbose = 1,
-                    callbacks = [keras.callbacks.EarlyStopping(patience=4)],
+                    callbacks = [keras.callbacks.EarlyStopping(patience=7)],
                     validation_data=(x_test, y_test))
 score = model.evaluate(x_test, y_test, verbose=0)
+print('Test loss:', score[0])
+print('Test accuracy:', score[1])
+
+# multiple gpus
+model.reset_states()
+parallel_model = multi_gpu_model(model, gpus=2)
+parallel_model.compile(loss=keras.losses.categorical_crossentropy,
+                       optimizer=keras.optimizers.Adam(),
+                       metrics=['accuracy'])
+
+history = parallel_model.fit(x_train, y_train,
+                             batch_size = 128,
+                             epochs = 500,
+                             verbose = 1,
+                             callbacks = [keras.callbacks.EarlyStopping(patience=7)],
+                             validation_data=(x_test, y_test))
+score = parallel_model.evaluate(x_test, y_test, verbose=0)
 print('Test loss:', score[0])
 print('Test accuracy:', score[1])
