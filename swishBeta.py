@@ -33,7 +33,6 @@ class SwishBeta(Layer):
 
 num_classes = 10
 img_rows, img_cols = 28, 28
-img_rows_new, img_cols_new = 299, 299
 
 (x_train, y_train), (x_test, y_test) = mnist.load_data()
 
